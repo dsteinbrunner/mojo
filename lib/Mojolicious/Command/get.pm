@@ -117,8 +117,8 @@ sub run {
   return $self->_json($buffer, $selector) if $type =~ /json/i;
 
   # Selector
-  $self->_select($buffer, $selector, $charset // $tx->res->content->charset,
-    @args);
+  $charset //= $tx->res->content->charset;
+  $self->_select($buffer, $selector, $charset, @args);
 }
 
 sub _json {
@@ -127,10 +127,11 @@ sub _json {
   my $json = Mojo::JSON->new;
   return unless my $data = $json->decode(shift);
   return unless defined($data = Mojo::JSON::Pointer->new->get($data, shift));
-  return say $self->auto_encode($data)
-    unless ref $data eq 'HASH' || ref $data eq 'ARRAY';
-  say $self->auto_encode(decode 'UTF-8', $json->encode($data));
+  return $self->_say($data) unless ref $data eq 'HASH' || ref $data eq 'ARRAY';
+  $self->_say(decode 'UTF-8', $json->encode($data));
 }
+
+sub _say { say shift->auto_encode(@)) }
 
 sub _select {
   my ($self, $buffer, $selector, $charset, @args) = @_;
@@ -148,19 +149,15 @@ sub _select {
     }
 
     # Text
-    elsif ($command eq 'text') {
-      say $self->auto_encode($_->text) for @$results;
-    }
+    elsif ($command eq 'text') { $self->_say($_->text) for @$results }
 
     # All text
-    elsif ($command eq 'all') {
-      say $self->auto_encode($_->all_text) for @$results;
-    }
+    elsif ($command eq 'all') { $self->_say($_->all_text) for @$results }
 
     # Attribute
     elsif ($command eq 'attr') {
       next unless my $name = shift @args;
-      say $self->auto_encode($_->attrs->{$name}) for @$results;
+      $self->_say($_->attrs->{$name}) for @$results;
     }
 
     # Unknown
