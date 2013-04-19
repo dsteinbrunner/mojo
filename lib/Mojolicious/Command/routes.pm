@@ -73,7 +73,7 @@ sub _draw {
     $format .= '?' if $format && $optional;
     push @parts, $format ? "$regex$format" : $regex if $verbose;
 
-    $self->enc_say(join '  ', @parts);
+    say $self->auto_encode(join '  ', @parts);
   }
 }
 

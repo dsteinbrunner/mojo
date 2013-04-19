@@ -18,11 +18,17 @@ has encoding    => sub { langinfo CODESET };
 has quiet       => 0;
 has usage       => "usage: $0\n";
 
+sub auto_encode {
+  my ($self, @args) = @_;
+  return @args unless my $encoding = $self->encoding;
+  return map { encode $encoding, $_ } @args;
+}
+
 sub chmod_file {
   my ($self, $path, $mod) = @_;
   chmod $mod, $path or croak qq{Can't chmod file "$path": $!};
   $mod = sprintf '%lo', $mod;
-  $self->enc_say("  [chmod] $path $mod") unless $self->quiet;
+  say $self->auto_encode("  [chmod] $path $mod") unless $self->quiet;
   return $self;
 }
 
@@ -34,10 +40,12 @@ sub chmod_rel_file {
 sub create_dir {
   my ($self, $path) = @_;
 
-  if (-d $path) { $self->enc_say("  [exist] $path") unless $self->quiet }
+  if (-d $path) {
+    say $self->auto_encode("  [exist] $path") unless $self->quiet;
+  }
   else {
     mkpath $path or croak qq{Can't make directory "$path": $!};
-    $self->enc_say("  [mkdir] $path") unless $self->quiet;
+    say $self->auto_encode("  [mkdir] $path") unless $self->quiet;
   }
 
   return $self;
@@ -48,15 +56,9 @@ sub create_rel_dir {
   $self->create_dir($self->rel_dir($path));
 }
 
-sub enc_print { print shift->_enc(@_) }
-
-sub enc_say { shift->enc_print(@_, "\n") }
-
-sub enc_warn { warn shift->_enc(@_) }
-
 sub help {
   my $self = shift;
-  $self->enc_print($self->usage);
+  print $self->auto_encode($self->usage);
   exit 0;
 }
 
@@ -86,19 +88,13 @@ sub write_file {
   my ($self, $path, $data) = @_;
   $self->create_dir(dirname $path);
   spurt $data, $path;
-  $self->enc_say("  [write] $path") unless $self->quiet;
+  say $self->auto_encode("  [write] $path") unless $self->quiet;
   return $self;
 }
 
 sub write_rel_file {
   my ($self, $path, $data) = @_;
   $self->write_file($self->rel_file($path), $data);
-}
-
-sub _enc {
-  my ($self, @args) = @_;
-  return @args unless my $encoding = $self->encoding;
-  return map { encode $encoding, $_ } @args;
 }
 
 1;
@@ -186,6 +182,12 @@ Usage information for command, used for the help screen.
 L<Mojolicious::Command> inherits all methods from L<Mojo::Base> and implements
 the following new ones.
 
+=head2 auto_encode
+
+  my $bytes = $command->auto_encode('I ♥ Mojolicious!');
+
+Encode characters with the appropriate encoding for the current environment.
+
 =head2 chmod_file
 
   $command = $command->chmod_file('/home/sri/foo.txt', 0644);
@@ -209,24 +211,6 @@ Create a directory.
   $command = $command->create_rel_dir('foo/bar/baz');
 
 Portably create a directory relative to the current working directory.
-
-=head2 enc_print
-
-  $command->enc_print('I ♥ Mojolicious!');
-
-Encode and C<print>.
-
-=head2 enc_say
-
-  $command->enc_say('I ♥ Mojolicious!');
-
-Encode and C<say>.
-
-=head2 enc_warn
-
-  $command->enc_warn('I ♥ Mojolicious!');
-
-Encode and C<warn>.
 
 =head2 help
 

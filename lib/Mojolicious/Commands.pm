@@ -97,14 +97,14 @@ sub run {
 
   # Print list of all available commands
   my $max = max map { length $_->[0] } @commands;
-  $self->enc_print($self->message);
+  print $self->auto_encode($self->message);
   for my $command (@commands) {
     my $name        = $command->[0];
     my $description = $command->[1]->new->description;
     my $cmd = "  $name" . (' ' x ($max - length $name)) . "   $description";
-    $self->enc_print($cmd);
+    print $self->auto_encode($cmd);
   }
-  return $self->enc_print($self->hint);
+  print $self->auto_encode($self->hint);
 }
 
 sub start_app {

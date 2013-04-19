@@ -97,7 +97,7 @@ sub run {
 
           # Ignore intermediate content
           return if $redirect && $res->is_status_class(300);
-          defined $selector ? ($buffer .= pop) : $self->enc_print(pop);
+          defined $selector ? ($buffer .= pop) : print $self->auto_encode(pop);
         }
       );
     }
@@ -108,7 +108,8 @@ sub run {
   STDOUT->autoflush(1);
   my $tx = $ua->start($ua->build_tx($method, $url, \%headers, $content));
   my ($err, $code) = $tx->error;
-  $self->enc_warn(qq{Problem loading URL "$url". ($err)\n}) if $err && !$code;
+  warn $self->auto_encode(qq{Problem loading URL "$url". ($err)\n})
+    if $err && !$code;
 
   # JSON Pointer
   return unless defined $selector;
@@ -126,9 +127,9 @@ sub _json {
   my $json = Mojo::JSON->new;
   return unless my $data = $json->decode(shift);
   return unless defined($data = Mojo::JSON::Pointer->new->get($data, shift));
-  return $self->enc_say($data)
+  return say $self->auto_encode($data)
     unless ref $data eq 'HASH' || ref $data eq 'ARRAY';
-  $self->enc_say(decode 'UTF-8', $json->encode($data));
+  say $self->auto_encode(decode 'UTF-8', $json->encode($data));
 }
 
 sub _select {
@@ -147,15 +148,19 @@ sub _select {
     }
 
     # Text
-    elsif ($command eq 'text') { $self->enc_say($_->text) for @$results }
+    elsif ($command eq 'text') {
+      say $self->auto_encode($_->text) for @$results;
+    }
 
     # All text
-    elsif ($command eq 'all') { $self->enc_say($_->all_text) for @$results }
+    elsif ($command eq 'all') {
+      say $self->auto_encode($_->all_text) for @$results;
+    }
 
     # Attribute
     elsif ($command eq 'attr') {
       next unless my $name = shift @args;
-      $self->enc_say($_->attrs->{$name}) for @$results;
+      say $self->auto_encode($_->attrs->{$name}) for @$results;
     }
 
     # Unknown
