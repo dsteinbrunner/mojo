@@ -7,7 +7,7 @@ use Mojo::IOLoop;
 use Mojo::JSON;
 use Mojo::JSON::Pointer;
 use Mojo::UserAgent;
-use Mojo::Util qw(decode encode);
+use Mojo::Util 'decode';
 
 has description => "Perform HTTP request.\n";
 has usage       => <<"EOF";
@@ -45,8 +45,6 @@ sub run {
     'M|method=s'  => \(my $method = 'GET'),
     'r|redirect'  => \my $redirect,
     'v|verbose'   => \my $verbose;
-
-  @args = map { decode 'UTF-8', $_ } @args;
   die $self->usage unless my $url = shift @args;
   my $selector = shift @args;
 
@@ -99,7 +97,7 @@ sub run {
 
           # Ignore intermediate content
           return if $redirect && $res->is_status_class(300);
-          defined $selector ? ($buffer .= pop) : print(pop);
+          defined $selector ? ($buffer .= pop) : $self->enc_print(pop);
         }
       );
     }
@@ -110,33 +108,31 @@ sub run {
   STDOUT->autoflush(1);
   my $tx = $ua->start($ua->build_tx($method, $url, \%headers, $content));
   my ($err, $code) = $tx->error;
-  $url = encode 'UTF-8', $url;
-  warn qq{Problem loading URL "$url". ($err)\n} if $err && !$code;
+  $self->enc_warn(qq{Problem loading URL "$url". ($err)\n}) if $err && !$code;
 
   # JSON Pointer
   return unless defined $selector;
   my $type = $tx->res->headers->content_type // '';
-  return _json($buffer, $selector) if $type =~ /json/i;
+  return $self->_json($buffer, $selector) if $type =~ /json/i;
 
   # Selector
-  _select($buffer, $selector, $charset // $tx->res->content->charset, @args);
+  $self->_select($buffer, $selector, $charset // $tx->res->content->charset,
+    @args);
 }
 
 sub _json {
+  my $self = shift;
+
   my $json = Mojo::JSON->new;
   return unless my $data = $json->decode(shift);
   return unless defined($data = Mojo::JSON::Pointer->new->get($data, shift));
-  return _say($data) unless ref $data eq 'HASH' || ref $data eq 'ARRAY';
-  say $json->encode($data);
-}
-
-sub _say {
-  return unless length(my $value = shift);
-  say encode('UTF-8', $value);
+  return $self->enc_say($data)
+    unless ref $data eq 'HASH' || ref $data eq 'ARRAY';
+  $self->enc_say(decode 'UTF-8', $json->encode($data));
 }
 
 sub _select {
-  my ($buffer, $selector, $charset, @args) = @_;
+  my ($self, $buffer, $selector, $charset, @args) = @_;
 
   my $dom     = Mojo::DOM->new->charset($charset)->parse($buffer);
   my $results = $dom->find($selector);
@@ -151,15 +147,15 @@ sub _select {
     }
 
     # Text
-    elsif ($command eq 'text') { _say($_->text) for @$results }
+    elsif ($command eq 'text') { $self->enc_say($_->text) for @$results }
 
     # All text
-    elsif ($command eq 'all') { _say($_->all_text) for @$results }
+    elsif ($command eq 'all') { $self->enc_say($_->all_text) for @$results }
 
     # Attribute
     elsif ($command eq 'attr') {
       next unless my $name = shift @args;
-      _say($_->attrs->{$name}) for @$results;
+      $self->enc_say($_->attrs->{$name}) for @$results;
     }
 
     # Unknown

@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Command';
 use Getopt::Long 'GetOptions';
 use List::Util 'max';
 use Mojo::Server;
+use Mojo::Util 'decode';
 
 has hint => <<"EOF";
 
@@ -60,6 +61,8 @@ sub run {
   $name = $self->detect($name) unless $ENV{MOJO_NO_DETECT};
 
   # Run command
+  my $encoding = $self->encoding;
+  @args = map { decode $encoding, $_ } @args if $encoding;
   if ($name && $name =~ /^\w+$/ && ($name ne 'help' || $args[0])) {
 
     # Help
@@ -74,7 +77,7 @@ sub run {
       unless $module;
 
     # Run command
-    my $command = $module->new(app => $self->app);
+    my $command = $module->new(app => $self->app, encoding => $encoding);
     return $help ? $command->help(@args) : $command->run(@args);
   }
 
@@ -94,13 +97,14 @@ sub run {
 
   # Print list of all available commands
   my $max = max map { length $_->[0] } @commands;
-  print $self->message;
+  $self->enc_print($self->message);
   for my $command (@commands) {
     my $name        = $command->[0];
     my $description = $command->[1]->new->description;
-    print "  $name", (' ' x ($max - length $name)), "   $description";
+    my $cmd = "  $name" . (' ' x ($max - length $name)) . "   $description";
+    $self->enc_print($cmd);
   }
-  return print $self->hint;
+  return $self->enc_print($self->hint);
 }
 
 sub start_app {

@@ -6,13 +6,15 @@ use Cwd 'getcwd';
 use File::Basename 'dirname';
 use File::Path 'mkpath';
 use File::Spec::Functions qw(catdir catfile);
+use I18N::Langinfo qw(langinfo CODESET);
 use Mojo::Loader;
 use Mojo::Server;
 use Mojo::Template;
-use Mojo::Util 'spurt';
+use Mojo::Util qw(encode spurt);
 
 has app => sub { Mojo::Server->new->build_app('Mojo::HelloWorld') };
 has description => 'No description.';
+has encoding    => sub { langinfo CODESET };
 has quiet       => 0;
 has usage       => "usage: $0\n";
 
@@ -20,7 +22,7 @@ sub chmod_file {
   my ($self, $path, $mod) = @_;
   chmod $mod, $path or croak qq{Can't chmod file "$path": $!};
   $mod = sprintf '%lo', $mod;
-  say "  [chmod] $path $mod" unless $self->quiet;
+  $self->enc_say("  [chmod] $path $mod") unless $self->quiet;
   return $self;
 }
 
@@ -32,10 +34,10 @@ sub chmod_rel_file {
 sub create_dir {
   my ($self, $path) = @_;
 
-  if (-d $path) { say "  [exist] $path" unless $self->quiet }
+  if (-d $path) { $self->enc_say("  [exist] $path") unless $self->quiet }
   else {
     mkpath $path or croak qq{Can't make directory "$path": $!};
-    say "  [mkdir] $path" unless $self->quiet;
+    $self->enc_say("  [mkdir] $path") unless $self->quiet;
   }
 
   return $self;
@@ -46,8 +48,15 @@ sub create_rel_dir {
   $self->create_dir($self->rel_dir($path));
 }
 
+sub enc_print { print shift->_enc(@_) }
+
+sub enc_say { shift->enc_print(@_, "\n") }
+
+sub enc_warn { warn shift->_enc(@_) }
+
 sub help {
-  print shift->usage;
+  my $self = shift;
+  $self->enc_print($self->usage);
   exit 0;
 }
 
@@ -77,7 +86,7 @@ sub write_file {
   my ($self, $path, $data) = @_;
   $self->create_dir(dirname $path);
   spurt $data, $path;
-  say "  [write] $path" unless $self->quiet;
+  $self->enc_say("  [write] $path") unless $self->quiet;
   return $self;
 }
 
@@ -86,7 +95,15 @@ sub write_rel_file {
   $self->write_file($self->rel_file($path), $data);
 }
 
+sub _enc {
+  my ($self, @args) = @_;
+  return @args unless my $encoding = $self->encoding;
+  return map { encode $encoding, $_ } @args;
+}
+
 1;
+
+=encoding utf8
 
 =head1 NAME
 
@@ -143,6 +160,13 @@ Application for command, defaults to a L<Mojo::HelloWorld> object.
 
 Short description of command, used for the command list.
 
+=head2 encoding
+
+  my $encoding = $command->encoding;
+  $command     = $command->encoding('koi8-r');
+
+Encoding to use for I/O, defaults to auto detection.
+
 =head2 quiet
 
   my $quiet = $command->quiet;
@@ -185,6 +209,24 @@ Create a directory.
   $command = $command->create_rel_dir('foo/bar/baz');
 
 Portably create a directory relative to the current working directory.
+
+=head2 enc_print
+
+  $command->enc_print('I ♥ Mojolicious!');
+
+Encode and C<print>.
+
+=head2 enc_say
+
+  $command->enc_say('I ♥ Mojolicious!');
+
+Encode and C<say>.
+
+=head2 enc_warn
+
+  $command->enc_warn('I ♥ Mojolicious!');
+
+Encode and C<warn>.
 
 =head2 help
 
